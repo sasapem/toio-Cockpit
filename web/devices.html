@@ -1,0 +1,92 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>機器の確認</title>
+<style>
+ body{margin:0;background:#1d1f24;color:#eee;font-family:-apple-system,"Hiragino Sans",sans-serif;font-size:18px;padding:24px 32px}
+ h1{font-size:26px;margin:0 0 6px}h2{font-size:20px;margin:28px 0 10px;color:#9fc}
+ .sub{color:#aaa;font-size:15px}
+ .row{display:flex;gap:18px;flex-wrap:wrap}
+ .card{background:#2a2d35;border-radius:12px;padding:16px 18px;min-width:280px;flex:1}
+ .card h3{margin:0 0 8px;font-size:19px}.name{font-size:14px;color:#bbb;min-height:1.2em;word-break:break-all}
+ .ok{color:#6f6}.ng{color:#f77}.wait{color:#fc6}
+ .bar{position:relative;height:16px;background:#111;border-radius:8px;margin:5px 0 9px;overflow:hidden}
+ .bar i{position:absolute;top:0;bottom:0;background:#4c9;border-radius:8px}
+ .bar.one i{left:0}
+ .lbl{font-size:14px;color:#ccc;display:flex;justify-content:space-between}
+ .xy{width:160px;height:160px;background:#111;border-radius:12px;position:relative;margin:8px auto}
+ .xy b{position:absolute;width:22px;height:22px;border-radius:50%;background:#4c9;margin:-11px 0 0 -11px;left:50%;top:50%}
+ .xy:before,.xy:after{content:"";position:absolute;background:#333}.xy:before{left:50%;top:0;bottom:0;width:1px}.xy:after{top:50%;left:0;right:0;height:1px}
+ .btns{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.btns span{width:22px;height:22px;border-radius:4px;background:#333;font-size:11px;display:flex;align-items:center;justify-content:center;color:#888}
+ .btns span.on{background:#fc6;color:#000}
+ button{font-size:16px;padding:8px 14px;border-radius:8px;border:0;background:#456;color:#fff;cursor:pointer}button:hover{background:#578}
+ details{margin-top:24px}summary{cursor:pointer;color:#9fc;font-size:18px}
+ table{border-collapse:collapse;margin-top:10px;font-size:15px}td,th{padding:6px 10px;border-bottom:1px solid #333;text-align:left}
+ #hint{background:#3a3320;border-left:4px solid #fc6;padding:10px 14px;border-radius:6px;margin:14px 0;font-size:16px}
+ #raw .card{min-width:220px}
+</style></head><body>
+<h1>機器の確認</h1>
+<div class="sub">スティック2本とペダルが正しくつながっているかを見る画面です。挿すだけで自動で割り当てます。</div>
+<div id="hint"></div>
+<div class="row" id="devs"></div>
+<h2>H3(席)</h2>
+<div class="card" style="max-width:600px"><div id="h3st"></div>
+ <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button onclick="sway('roll')">左右に揺らす</button><button onclick="sway('pitch')">前後に揺らす</button><button onclick="sway('yaw')">横振り</button><button onclick="sway('')">止める(中央)</button></div>
+ <div class="sub" style="margin-top:8px">3秒だけ小さく動きます。人が乗っていない時に試してください。押すと席の操作権がこの画面に移るので、終わったらゲーム画面を開き直してください。</div></div>
+<h2>ブラウザが見ている機器(すべて)</h2>
+<div class="row" id="raw"></div>
+<h2>Mac が見ている機器(USB)</h2>
+<div class="card" style="max-width:600px" id="hid">…</div>
+<details><summary>細かい調整(ふつうは不要)</summary>
+ <div class="sub">自動の割り当てが合わない時だけ。「動かして決める」を押してから、その役にしたい軸を大きく動かして戻します。</div>
+ <table id="roles"></table>
+ <div style="margin-top:10px"><button onclick="H3Input.clear();render()">すべて自動に戻す</button></div>
+</details>
+<script src="input.js"></script>
+<script>
+let OWNER=(typeof __OWNER__==='undefined')?1:__OWNER__;   // 席を試す時に /claim で取り直す
+const $=id=>document.getElementById(id);
+const DEVS=[{dev:'stick1',label:'スティック1'},{dev:'stick2',label:'スティック2'},{dev:'pedals',label:'ペダル'}];
+let st={},busy='',rolesSig='';
+function bar(v,one){const w=one?Math.max(0,v)*100:Math.abs(v)*50;const left=one?0:(v<0?50-w:50);return `<div class="bar${one?' one':''}"><i style="left:${left}%;width:${w}%"></i></div>`}
+function render(){const v=H3Input.values();const pads=H3Input.pads();
+ // 上の3枚
+ $('devs').innerHTML=DEVS.map(d=>{const p=H3Input.padFor(d.dev);const okc=p?'ok':'ng';
+  let body='';
+  if(d.dev==='pedals'){body=`<div class="lbl"><span>左右(舵)</span><span>${v.rudder.toFixed(2)}</span></div>${bar(v.rudder)}
+   <div class="lbl"><span>左を踏む</span><span>${v.brake_l.toFixed(2)}</span></div>${bar(v.brake_l,1)}<div class="lbl"><span>右を踏む</span><span>${v.brake_r.toFixed(2)}</span></div>${bar(v.brake_r,1)}`}
+  else{const x=v[d.dev+'_x'],y=v[d.dev+'_y'];body=`<div class="xy"><b style="left:${50+x*45}%;top:${50+y*45}%"></b></div>
+   <div class="lbl"><span>左右 ${x.toFixed(2)}</span><span>前後 ${y.toFixed(2)}</span></div>
+   <div class="lbl"><span>ひねり</span><span>${v[d.dev+'_twist'].toFixed(2)}</span></div>${bar(v[d.dev+'_twist'])}
+   <div class="lbl"><span>スロットル</span><span>${v[d.dev+'_throttle'].toFixed(2)}</span></div>${bar(v[d.dev+'_throttle'],1)}`}
+  const btns=p?`<div class="btns">${p.buttons.map((b,i)=>`<span class="${b?'on':''}">${i+1}</span>`).join('')}</div>`:'';
+  return `<div class="card"><h3><span class="${okc}">●</span> ${d.label}</h3><div class="name">${p?p.id:'未検出'}</div>${p?body+btns:'<div class="sub" style="margin-top:12px">ボタンを1回押すか、大きく倒してください</div>'}</div>`}).join('');
+ // 生の一覧
+ $('raw').innerHTML=pads.length?pads.map(p=>`<div class="card"><h3>機器 ${p.index}</h3><div class="name">${p.id}</div>
+  ${p.axes.map((a,i)=>`<div class="lbl"><span>軸${i}</span><span>${a.toFixed(2)}</span></div>${bar(a)}`).join('')}
+  <div class="btns">${p.buttons.map((b,i)=>`<span class="${b?'on':''}">${i+1}</span>`).join('')}</div></div>`).join('')
+  :'<div class="sub">まだ何も見えていません。ブラウザは、ボタンを押すか軸を大きく動かすまで機器を出しません。この画面をクリックしてから、各機器のボタンを1回ずつ押してください。</div>';
+ // 案内
+ const have=DEVS.filter(d=>H3Input.padFor(d.dev)).length;
+ $('hint').innerHTML=have===3?'<span class="ok">3つとも見えています。</span> 動かして値が変わるか確かめてください。':
+  pads.length?`<span class="wait">${have} / 3 が割り当て済みです。</span> 残りの機器のボタンを1回押すか、大きく倒してください。同じスティックが2本ある時は、先に見えた方が「スティック1」です。`:
+  '<span class="ng">まだ機器が見えていません。</span> 1) USB を挿す 2) この画面を一度クリック 3) 各機器のボタンを1回押す(ペダルは大きく踏む)。';
+ // 調整表(骨組みは割り当てが変わった時だけ作り直す。毎回作り直すとボタンが押せない)
+ const map=H3Input.map();const sig=JSON.stringify(map)+'|'+busy;
+ if(sig!==rolesSig){rolesSig=sig;
+  $('roles').innerHTML='<tr><th>役</th><th>機器 / 軸</th><th>値</th><th></th></tr>'+H3Input.ROLES.map(r=>{const m=map[r.key];
+   return `<tr><td>${r.label}</td><td>${m?`${m.id.slice(0,24)} 軸${m.axis}${m.auto?' (自動)':''}${m.center?` 中央${m.center}`:''}`:'-'}</td><td id="rv_${r.key}"></td>
+   <td><button onclick="doAssign('${r.key}')" ${busy?'disabled':''}>${busy===r.key?'動かして…':'動かして決める'}</button> <button onclick="H3Input.center('${r.key}');rolesSig='';render()">今を中央に</button></td></tr>`}).join('')}
+ for(const r of H3Input.ROLES){const el=$('rv_'+r.key);if(el)el.textContent=v[r.key].toFixed(2)}
+ // H3
+ $('h3st').innerHTML=H3Input.STANDALONE?'ファイルとして開いているため H3 は使えません(bridge 経由で開いてください)':
+  st.connected?`<span class="ok">● H3 接続中</span> ${st.port||''}`:`<span class="ng">● H3 未接続</span> USB を挿すと数秒で自動でつながります`;
+}
+async function doAssign(key){if(busy)return;busy=key;render();await H3Input.assign(key,8);busy='';rolesSig='';render()}
+let swayT=0,swayK='';
+async function sway(k){if(!H3Input.STANDALONE){try{OWNER=(await (await fetch('/claim')).json()).owner}catch(e){}}swayK=k;swayT=k?3:0;if(!k)post({pitch:0,roll:0,yaw:0})}
+function post(o){if(H3Input.STANDALONE)return;fetch('/',{method:'POST',body:JSON.stringify(Object.assign({owner:OWNER},o))}).catch(()=>{})}
+setInterval(()=>{if(swayT>0){swayT-=0.1;const v=Math.sin(performance.now()/300)*0.5;const o={pitch:0,roll:0,yaw:0};o[swayK]=v;post(swayT>0?o:{pitch:0,roll:0,yaw:0})}},100);
+if(!H3Input.STANDALONE){setInterval(()=>fetch('/state').then(r=>r.json()).then(s=>st=s).catch(()=>{}),1000);
+ const hid=()=>fetch('/hid').then(r=>r.json()).then(l=>{$('hid').innerHTML=l.length?l.map(d=>`<div>● ${d.product} <span class="sub">(${d.manufacturer||''})</span></div>`).join(''):'<span class="ng">USB の入力機器が見えていません。</span> ケーブルとハブを確認してください。'}).catch(()=>{$('hid').textContent='(取得できません)'});
+ hid();setInterval(hid,3000)}else $('hid').textContent='(bridge 経由で開くと表示されます)';
+H3Input.load().then(render);
+(function loop(){render();requestAnimationFrame(loop)})();
+</script></body></html>

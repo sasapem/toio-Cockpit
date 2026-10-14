@@ -1,0 +1,357 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>toio コックピット</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=M+PLUS+1p:wght@700;900&display=swap" rel="stylesheet">
+<style>
+ html,body{height:100%}body{margin:0;background:#04070c;color:#9fe;overflow:hidden;font-family:"Orbitron","M PLUS 1p","Hiragino Sans",sans-serif;font-weight:700}
+ canvas{display:block;position:fixed;inset:0}
+ #setup{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2vh;background:rgba(2,6,12,.85);z-index:5}
+ #setup h1{font-size:6vh;margin:0;color:#7ff;letter-spacing:.15em;text-shadow:0 0 2vh #0ff}
+ .btn{font-size:3vh;padding:1.6vh 4vh;border:.4vh solid #7ff;background:#08202a;color:#bff;border-radius:1vh;cursor:pointer;font-family:inherit;font-weight:900;letter-spacing:.1em;min-width:34vw;text-align:left}
+ .btn.ok{border-color:#6f6;color:#6f6}.btn.go{background:#7ff;color:#022;text-align:center;font-size:3.6vh}
+ #setup .sub{font-size:2vh;color:#8bc;font-family:"M PLUS 1p",sans-serif}
+ .hud{position:fixed;font-size:2.4vh;color:#7ff;text-shadow:0 0 1vh #0ff;pointer-events:none;font-family:"M PLUS 1p","Orbitron",sans-serif}
+ #msg{position:fixed;bottom:16vh;width:100%;text-align:center;font-size:4vh;color:#ff9;text-shadow:0 0 1.5vh #f80;pointer-events:none;transition:opacity .4s;font-family:"M PLUS 1p",sans-serif}
+ #big{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);font-size:12vh;color:#7ff;text-shadow:0 0 3vh #0ff;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;letter-spacing:.1em}
+ #say{position:fixed;top:12vh;right:3vw;max-width:40vw;font-size:2.6vh;background:rgba(40,0,0,.7);border:.3vh solid #f66;color:#fbb;padding:1.2vh 2vh;border-radius:1vh;opacity:0;transition:opacity .3s;font-family:"M PLUS 1p",sans-serif}
+ #st{position:fixed;top:1vh;left:50%;transform:translateX(-50%);font-size:1.6vh;opacity:.7;font-family:sans-serif;white-space:nowrap;color:#ccc}
+ .ok{color:#7f7}.ng{color:#f77}
+ #calib{position:fixed;inset:0;background:rgba(2,6,12,.92);z-index:6;display:none;align-items:center;justify-content:center;font-family:"M PLUS 1p","Hiragino Sans",sans-serif}
+ #calib .panel{background:#07141c;border:.4vh solid #7ff;border-radius:1.5vh;padding:2.5vh 3.5vh;max-width:88vw;max-height:90vh;overflow:auto;font-size:2vh}
+ #calib h2{margin:0 0 1vh;color:#7ff;font-size:3.2vh}#calib .sub{color:#8bc;font-size:1.8vh;line-height:1.6}
+ #calib table{border-collapse:collapse;margin-top:1vh;width:100%}#calib td,#calib th{padding:.8vh 1.2vh;border-bottom:1px solid #234;text-align:left;white-space:nowrap}
+ #calib .bar{position:relative;width:24vw;height:2vh;background:#0a1a24;border:1px solid #2af;border-radius:1vh;overflow:hidden;display:inline-block;vertical-align:middle}
+ #calib .bar i{position:absolute;top:0;bottom:0;background:#4fd}#calib .bar.one i{left:0}#calib .bar b{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#2af}
+ #calib .btn.small{font-size:1.9vh;padding:.8vh 1.6vh;min-width:0;margin:.2vh}
+ #calib .on{color:#ff0;font-weight:900}
+ #wiz{position:fixed;inset:0;background:rgba(2,6,12,.96);z-index:7;display:none;flex-direction:column;align-items:center;justify-content:center;gap:2.5vh;font-family:"M PLUS 1p","Hiragino Sans",sans-serif;text-align:center}
+ #wiz h2{margin:0;color:#7ff;font-size:3.6vh;letter-spacing:.1em}
+ #wiz .step{font-size:5.2vh;color:#fff;text-shadow:0 0 2vh #0ff;min-height:7vh}
+ #wiz .prog{font-size:2.2vh;color:#8bc}#wiz .found{font-size:2.6vh;color:#6f6;min-height:3.5vh}
+ #wiz .meter{width:50vw;height:2.4vh;background:#0a1a24;border:.3vh solid #2af;border-radius:1.2vh;overflow:hidden}#wiz .meter i{display:block;height:100%;background:#4fd;width:0}
+ #wiz .row{display:flex;gap:2vh}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="setup">
+ <h1>toio COCKPIT</h1>
+ <div class="sub">toio の電源を入れて、2台をつなぎます(ブラウザの一覧で toio Core Cube を選ぶ)</div>
+ <button class="btn" id="b1" onclick="link(0)">① 自機(あなたが乗る toio)をつなぐ</button>
+ <button class="btn" id="b2" onclick="link(1)">② 敵機(AI が操る toio)をつなぐ</button>
+ <div class="sub" id="matinfo">マットの上に2台を置いてください</div>
+ <div class="sub" id="devinfo"></div>
+ <button class="btn" onclick="openCalib()">⚙ 操作の確認・設定(スティック・ペダル)</button>
+ <button class="btn" onclick="startWizard()">↻ 操作の割り当てを最初からやり直す</button>
+ <div class="sub">出撃の瞬間に、スティックとペダルの「今」が中央になります。手を離してから押してください</div>
+ <button class="btn go" id="go" onclick="launch()" disabled>出 撃</button>
+ <div class="sub">敵機なしでも出撃できます(的なし練習)。C キーでいつでも操作の確認画面。キーボード: W/S 左キャタピラ、↑/↓ 右キャタピラ、Space ビーム、Shift ブースト、Ctrl シールド、Z 中央合わせ</div>
+</div>
+<div id="calib">
+ <div class="panel">
+  <h2>操作の確認・設定</h2>
+  <div class="sub" id="calhint"></div>
+  <table id="caltab"></table>
+  <div class="sub" style="margin-top:1.5vh">棒が動かない時: 画面を一度クリックしてから、その機器のボタンを1回押す(ブラウザは押すまで機器を出しません)。
+   割り当てが違う時: 「動かして決める」を押して、その操作に使いたい軸を大きく動かして戻す(ボタンは押す)。向きが逆なら「反転」。</div>
+  <div style="margin-top:1.5vh"><button class="btn small" onclick="H3Input.clear();renderCalib()">すべて自動に戻す</button> <button class="btn small go" onclick="closeCalib()">閉じる</button></div>
+  <div class="sub" id="rawpads" style="margin-top:1.5vh"></div>
+ </div>
+</div>
+<div id="wiz">
+ <h2>操作の割り当て(起動時に毎回)</h2>
+ <div class="prog" id="wizprog"></div>
+ <div class="step" id="wizstep"></div>
+ <div class="meter"><i id="wizmeter"></i></div>
+ <div class="found" id="wizfound"></div>
+ <div class="prog" id="wizdev"></div>
+ <div class="row"><button class="btn small" onclick="wizSkip()">この項目をとばす (Enter)</button><button class="btn small" onclick="wizAbort()">全部とばす (Esc)</button></div>
+</div>
+<div id="big"></div><div id="msg"></div><div id="say"></div><div id="st"></div>
+<script src="input.js"></script><script src="toio.js"></script>
+<script>
+const OWNER=(typeof __OWNER__==='undefined')?1:__OWNER__;const STANDALONE=location.protocol==='file:';
+const c=document.getElementById('c'),x=c.getContext('2d');const $=id=>document.getElementById(id);
+let W,Hh;function rs(){W=c.width=innerWidth;Hh=c.height=innerHeight}addEventListener('resize',rs);rs();
+// ================= 状態 =================
+const MAT={x0:45,y0:45,x1:455,y1:455};   // 見えた位置で広がる
+const cube=[null,null];                  // 0=自機 1=敵機
+const M=[{hp:100,x:150,y:250,a:0,vx:0,vy:0,va:0,speed:0,turn:0,hitT:0,shield:0,boost:0,fireT:0,alive:true,onMat:true,lastPos:null,lastT:0},
+         {hp:100,x:350,y:250,a:180,vx:0,vy:0,va:0,speed:0,turn:0,hitT:0,shield:0,boost:0,fireT:0,alive:true,onMat:true,lastPos:null,lastT:0}];
+let mode='setup';let t={pitch:0,roll:0,yaw:0},cur={pitch:0,roll:0,yaw:0},gain=0.35,keys={},st={},last=performance.now(),tm=0,endT=0,win='';
+let beams=[];let ai={mode:'chase',say:'',busy:false,nextT:0,target:null};
+const SPEED_SCALE=0.1;   // toio の速さ(1.0=元の速さ、0.1=1/10)。席の揺れは元の指示の強さで計算する
+const mSpd=v=>{const a=Math.abs(v)*SPEED_SCALE;return v===0?0:Math.sign(v)*Math.max(10,Math.min(115,Math.round(a)))};   // toio は 10 未満だと動かないので下限 10
+const FIRE_RANGE=260,FIRE_CONE=11;const BEAM_DMG=6,BEAM_CD=0.9,ENEMY_DMG=6;   // 決着まで 1分前後になる強さ
+// ================= toio 接続 =================
+async function link(i){try{const cb=await Toio.connect();attach(i,cb)}catch(e){$('matinfo').textContent='つなげませんでした: '+e.message}}
+function attach(i,cb){cube[i]=cb;
+  cb.on('position',p=>{const m=M[i];if(p&&p.onMat&&p.x!=null){const now=performance.now();
+    if(m.lastPos){const dt=(now-m.lastT)/1000;if(dt>0.02){m.vx=(p.x-m.lastPos.x)/dt;m.vy=(p.y-m.lastPos.y)/dt;let da=p.angle-m.lastPos.angle;if(da>180)da-=360;if(da<-180)da+=360;m.va=da/dt}}
+    m.lastPos={x:p.x,y:p.y,angle:p.angle};m.lastT=now;m.x=p.x;m.y=p.y;m.a=p.angle;m.onMat=true;
+    MAT.x0=Math.min(MAT.x0,p.x);MAT.y0=Math.min(MAT.y0,p.y);MAT.x1=Math.max(MAT.x1,p.x);MAT.y1=Math.max(MAT.y1,p.y)}
+   else{m.onMat=false}});
+  cb.on('motion',mo=>{if(mo.collision&&mode==='battle'){onCollision(i)}});
+  cb.on('disconnect',()=>{cube[i]=null;refresh()});
+  cb.lamp(...(i===0?[0,120,255]:[255,30,30]),0);cb.sound(i===0?1:3);refresh()}
+function refresh(){$('b1').className='btn'+(cube[0]?' ok':'');$('b1').textContent=(cube[0]?'✓ ':'① ')+'自機(あなたが乗る toio)'+(cube[0]?'  接続中':'をつなぐ');
+ $('b2').className='btn'+(cube[1]?' ok':'');$('b2').textContent=(cube[1]?'✓ ':'② ')+'敵機(AI が操る toio)'+(cube[1]?'  接続中':'をつなぐ');
+ $('go').disabled=!cube[0];$('matinfo').textContent=cube[0]?(M[0].onMat?`自機 マット上 (${M[0].x},${M[0].y})`:'自機 マット外(マットに置いてください)')+(cube[1]?'　'+(M[1].onMat?`敵機 マット上 (${M[1].x},${M[1].y})`:'敵機 マット外'):''):'マットの上に2台を置いてください'}
+function devinfo(){H3Input.values();const names={stick1:'スティック1',stick2:'スティック2',pedals:'ペダル'};const src=H3Input.source();
+ const parts=Object.keys(names).map(d=>`${names[d]} ${H3Input.padFor(d)?'<span class="ok">○</span>':'<span class="ng">×</span>'}`);
+ const missing=Object.keys(names).filter(d=>!H3Input.padFor(d));
+ $('devinfo').innerHTML=parts.join('　')+`　<span style="opacity:.7">(${src==='mac'?'Mac側で直接読み取り':'ブラウザ経由'})</span>`+
+  (missing.length?`<br><span class="ng">${missing.map(d=>names[d]).join('・')} が見えません。USB のケーブルとハブを確認してください</span>`:'<br><span class="ok">全部そろっています。手を離して出撃してください</span>')}
+setInterval(()=>{if(mode==='setup'){refresh();devinfo()}},500);
+function launch(){if(!cube[0])return;ensureAudio();const nC=H3Input.centerAll();if(nC)msg(`スティック・ペダルの中央を合わせました(${nC}軸)`);mode='battle';$('setup').style.display='none';for(const m of M){m.hp=100;m.alive=true}tm=0;beams=[];ai.mode='chase';ai.nextT=1.5;
+ big('出撃',1200);say('');msg('敵機を 正面に とらえて ビーム！');if(cube[1]){cube[1].lamp(255,30,30,0)}cube[0].sound(2)}
+// ================= 入力 =================
+addEventListener('keydown',e=>{keys[e.key]=1;if(!e.repeat)ensureAudio();if(e.key==='Escape')closeCalib();if(e.key==='c'||e.key==='C'){if($('calib').style.display==='flex')closeCalib();else openCalib()}if(e.key===' '&&mode==='battle')fire();if(e.key===' '&&mode==='end'&&endT>3)restart();
+ if(e.key==='+'||e.key==='=')gain=Math.min(1,gain+0.05);if(e.key==='-')gain=Math.max(0,gain-0.05);if(e.key==='m'||e.key==='M')toggleSound();if(e.key==='z'||e.key==='Z'){const n=H3Input.centerAll();msg(`中央を合わせました(${n}軸)`)}});
+addEventListener('keyup',e=>keys[e.key]=0);addEventListener('pointerdown',()=>ensureAudio());
+H3Input.load();H3Input.onChange(()=>{calSig=''});let btnPrev=false;
+// ================= 起動時の強制キャリブレーション =================
+// 1項目ずつ「動かして戻す」で、機器・軸・中央・向きを決める。倒した向きが そのまま ゲームの向きになる。
+const WIZ=[
+ {key:'stick1_y',text:'左のスティックを 前に倒して 戻す',want:-1},     // 前=生の値がマイナス になるように
+ {key:'stick1_x',text:'左のスティックを 右に倒して 戻す',want:1},
+ {key:'stick2_y',text:'右のスティックを 前に倒して 戻す',want:-1},
+ {key:'stick2_x',text:'右のスティックを 右に倒して 戻す',want:1},
+ {key:'rudder',text:'ペダルの 右を 前に踏み込んで 戻す(右旋回)',want:1},
+ {key:'brake_r',text:'右ペダルを つま先で 踏んで 戻す(ブースト)',one:true},
+ {key:'brake_l',text:'左ペダルを つま先で 踏んで 戻す(シールド)',one:true},
+ {key:'btn_fire',text:'ビームに使う ボタンを 押す',btn:true},
+];
+let wiz={on:false,i:0,cancel:null};
+async function startWizard(){if(wiz.on)return;wiz.on=true;wiz.i=0;$('wiz').style.display='flex';H3Input.clear();
+ for(wiz.i=0;wiz.i<WIZ.length&&wiz.on;wiz.i++){const w=WIZ[wiz.i];
+  $('wizprog').textContent=`${wiz.i+1} / ${WIZ.length}`;$('wizstep').textContent=w.text;$('wizfound').textContent='';$('wizmeter').style.width='0%';
+  const res=await new Promise(res=>{wiz.cancel=()=>res('skip');
+   if(w.btn){H3Input.assignButton(w.key,20).then(r=>res(r?'ok':'none'))}
+   else{H3Input.assign(w.key,20,(el,best)=>{$('wizmeter').style.width=Math.min(100,el/20*100)+'%';
+     $('wizfound').textContent=best?`動いているのは: ${best.id.slice(0,26)} の 軸${best.axis}`:'';
+     const pads=H3Input.pads();$('wizdev').textContent=pads.length?`見えている機器 ${pads.length}台 (${H3Input.source()==='mac'?'Mac側で読み取り':'ブラウザ経由'})`:'機器が見えていません。USB を確認してください(見えなくても とばせます)'}).then(r=>res(r?'ok':'none'))}});
+  wiz.cancel=null;
+  if(res==='ok'&&!w.btn){const m=H3Input.map()[w.key];   // 倒した向きが want と逆なら反転(片側ものは assign の dir で吸収)
+   if(m&&!w.one&&w.want&&m.dir!==w.want){H3Input.invert(w.key)}
+   $('wizfound').textContent='OK';await new Promise(r=>setTimeout(r,500))}
+  else if(res==='none'){$('wizfound').textContent='見つかりませんでした(とばします)';await new Promise(r=>setTimeout(r,800))}}
+ wiz.on=false;$('wiz').style.display='none';H3Input.save();calSig='';devinfo()}
+function wizSkip(){if(wiz.cancel)wiz.cancel()}
+function wizAbort(){wiz.on=false;if(wiz.cancel)wiz.cancel()}
+addEventListener('keydown',e=>{if(!wiz.on)return;if(e.key==='Enter')wizSkip();if(e.key==='Escape')wizAbort()});
+if(!STANDALONE&&location.hash!=='#skipcal')setTimeout(startWizard,300);
+// 操作の一覧(確認・設定画面で使う)。key は input.js の役、btn は ボタン割り当て
+const CTRL=[
+ {key:'stick1_y',label:'左キャタピラ(左スティック前後)',read:v=>-v.stick1_y},
+ {key:'stick2_y',label:'右キャタピラ(右スティック前後)',read:v=>-v.stick2_y},
+ {key:'rudder',label:'急旋回(ペダル左右)',read:v=>v.rudder},
+ {key:'brake_r',label:'ブースト(右ペダルを踏む)',read:v=>v.brake_r,one:true},
+ {key:'brake_l',label:'シールド(左ペダルを踏む)',read:v=>v.brake_l,one:true},
+ {key:'btn_fire',label:'ビーム(スティックのボタン)',btn:true},
+];
+let calBusy='';
+function openCalib(){$('calib').style.display='flex';renderCalib()}
+function closeCalib(){$('calib').style.display='none'}
+let calSig='';
+function renderCalib(){if($('calib').style.display!=='flex')return;const v=H3Input.values();const map=H3Input.map();const pads=H3Input.pads();
+ const bar=(val,one)=>{const w=one?Math.max(0,val)*100:Math.abs(val)*50;const left=one?0:(val<0?50-w:50);return `<span class="bar${one?' one':''}"><i style="left:${left}%;width:${w}%"></i>${one?'':'<b></b>'}</span>`};
+ // 表の骨組みは、割り当てや機器の数が変わった時だけ作り直す(毎回作り直すとボタンが押せない)
+ const sig=JSON.stringify(map)+'|'+pads.map(p=>p.index+p.id).join(',')+'|'+calBusy;
+ if(sig!==calSig){calSig=sig;
+  $('caltab').innerHTML='<tr><th>操作</th><th>今の値</th><th>機器 / 軸</th><th></th></tr>'+CTRL.map(c=>{const m=map[c.key];
+   if(c.btn)return `<tr><td>${c.label}</td><td id="val_${c.key}"></td><td>${m?`${m.id.slice(0,22)} ボタン${m.button+1}`:'未設定(どのボタンでも可)'}</td>
+    <td><button class="btn small" onclick="doAssignBtn('${c.key}')" ${calBusy?'disabled':''}>${calBusy===c.key?'押して…':'押して決める'}</button></td></tr>`;
+   return `<tr><td>${c.label}</td><td id="val_${c.key}"></td><td>${m?`${m.id.slice(0,22)} 軸${m.axis}${m.auto?' (自動)':''}${m.invert?' 反転':''}`:'<span class="ng">未検出</span>'}</td>
+    <td><button class="btn small" onclick="doAssign('${c.key}')" ${calBusy?'disabled':''}>${calBusy===c.key?'動かして…':'動かして決める'}</button><button class="btn small" onclick="H3Input.invert('${c.key}');renderCalib()">反転</button>${c.one?'':`<button class="btn small" onclick="H3Input.center('${c.key}');renderCalib()">今を中央に</button>`}</td></tr>`}).join('');
+  const have=['stick1','stick2','pedals'].filter(d=>H3Input.padFor(d));
+  $('calhint').innerHTML=pads.length?`見えている機器 ${pads.length}台: <span class="ok">${have.map(d=>({stick1:'スティック1',stick2:'スティック2',pedals:'ペダル'})[d]).join('・')||'(割り当てなし)'}</span>${have.length<3?'　<span class="ng">足りない機器はボタンを1回押すか大きく動かしてください</span>':''}`
+   :'<span class="ng">機器がまだ見えていません。</span> 画面を一度クリックしてから、各機器のボタンを1回押してください(ペダルは大きく踏む)。';}
+ // 値だけ書き換える
+ for(const c of CTRL){const el=$('val_'+c.key);if(!el)continue;
+  if(c.btn){const pr=H3Input.pressed(c.key);const anyb=[...H3Input.buttons('stick1'),...H3Input.buttons('stick2')].some(b=>b);
+   el.innerHTML=pr==null?(anyb?'<span class="on">押している</span>(どのボタンでも)':'-(どのボタンでも)'):(pr?'<span class="on">押している</span>':'-')}
+  else{const val=c.read(v);el.innerHTML=bar(val,c.one)+' '+val.toFixed(2)}}
+ $('rawpads').innerHTML=pads.map(p=>`機器${p.index}: ${p.id.slice(0,30)}　軸 [${p.axes.map(a=>a.toFixed(2)).join(', ')}]　押しているボタン ${p.buttons.map((b,i)=>b?i+1:'').filter(x=>x).join(',')||'-'}`).join('<br>')}
+async function doAssign(key){if(calBusy)return;calBusy=key;renderCalib();await H3Input.assign(key,8);calBusy='';renderCalib()}
+async function doAssignBtn(key){if(calBusy)return;calBusy=key;renderCalib();await H3Input.assignButton(key,8);calBusy='';renderCalib()}
+setInterval(renderCalib,100);
+function readInput(){const v=H3Input.values();const I={};
+ I.left=-v.stick1_y+(keys.w||keys.W?1:0)-(keys.s||keys.S?1:0);I.right=-v.stick2_y+(keys.ArrowUp?1:0)-(keys.ArrowDown?1:0);
+ I.turn=v.rudder;I.shield=Math.max(v.brake_l,keys.Control?1:0);I.boost=Math.max(v.brake_r,keys.Shift?1:0);
+ const fp=H3Input.pressed('btn_fire');const btn=fp==null?[...H3Input.buttons('stick1'),...H3Input.buttons('stick2')].some(b=>b):fp;I.fireEdge=btn&&!btnPrev;btnPrev=btn;
+ for(const k of ['left','right','turn'])I[k]=Math.max(-1,Math.min(1,I[k]));return I}
+// ================= 戦闘 =================
+function fire(){const m=M[0];if(mode!=='battle'||m.fireT>0||m.shield>0.5)return;m.fireT=BEAM_CD;m.recoil=1;sndBeam();
+ const hit=inCone(M[0],M[1])&&cube[1]&&M[1].alive;beams.push({t:0,hit});
+ if(hit){damage(1,BEAM_DMG,'ビーム');cube[1].lamp(255,255,255,200);cube[1].sound(7)}}
+function inCone(a,b){if(!b)return false;const dx=b.x-a.x,dy=b.y-a.y;const d=Math.hypot(dx,dy);if(d>FIRE_RANGE)return false;let da=Math.atan2(dy,dx)*180/Math.PI-a.a;da=((da+540)%360)-180;return Math.abs(da)<FIRE_CONE}
+function damage(i,n,why){const m=M[i];if(!m.alive)return;if(m.shield>0.5)n*=0.25;m.hp=Math.max(0,m.hp-n);m.hitT=0.5;if(i===0){G_shake=1;HIT.t=0;HIT.amp=m.shield>0.5?0.5:1;HIT.side=Math.random()<0.5?-1:1;sndHit()}
+ if(m.hp<=0){m.alive=false;finish(i===0?'lose':'win',why)}}
+function onCollision(i){const now=tm;if(now-(M[i].colT||0)<0.5)return;M[i].colT=now;   // 体当たり: 速い方が押した側
+ const s0=Math.hypot(M[0].vx,M[0].vy),s1=Math.hypot(M[1].vx,M[1].vy);
+ if(i===0){G_jolt=1;sndCrash()}
+ const dv=20*SPEED_SCALE;
+ if(s1>s0+dv)damage(0,6,'体当たり');else if(s0>s1+dv)damage(1,6,'体当たり');else{damage(0,2);damage(1,2)}}
+function finish(r,why){if(mode!=='battle')return;mode='end';endT=0;win=r;big(r==='win'?'WIN':'LOSE');msg(r==='win'?`敵機 撃破(${why})　Space か ボタン で もう一度`:`自機 大破(${why})　Space か ボタン で もう一度`);
+ if(cube[0])cube[0].stop();if(cube[1]){cube[1].stop();cube[1].lamp(...(r==='win'?[40,40,40]:[255,0,0]),0)}if(r==='win')sndWin();else sndLose()}
+function restart(){mode='setup';$('setup').style.display='flex';$('big').style.opacity=0;msg('');refresh()}
+let G_shake=0,G_jolt=0,aimTarget=null,aimY=0;const HIT={t:9,amp:0,side:1};   // 被弾の衝撃(t=経過秒)
+function battleStep(dt,I){tm+=dt;const m=M[0];
+ // 自機: 戦車式
+ m.shield=I.shield;m.boost=I.boost;const mx=m.boost>0.5?115:80;
+ let L=I.left*mx,R=I.right*mx;if(Math.abs(I.turn)>0.1){L+=I.turn*60;R-=I.turn*60}
+ m.reverse=(I.left<-0.25&&I.right<-0.25);   // 両方のレバーを引いたら まっすぐ後退
+ if(m.reverse){const b=Math.max(Math.abs(I.left),Math.abs(I.right));L=-b*mx;R=-b*mx}
+ if(m.shield>0.5){L*=0.3;R*=0.3}
+ if(Math.abs(L)<6)L=0;if(Math.abs(R)<6)R=0;
+ if(cube[0]&&m.alive)cube[0].move(mSpd(Math.max(-115,Math.min(115,L))),mSpd(Math.max(-115,Math.min(115,R))));
+ m.speed=(L+R)/2;m.turn=(L-R)/2;
+ if(I.fireEdge)fire();m.fireT=Math.max(0,m.fireT-dt);m.recoil=(m.recoil||0)*Math.pow(0.02,dt);
+ for(const q of M)q.hitT=Math.max(0,q.hitT-dt);
+ for(const b of beams)b.t+=dt;beams=beams.filter(b=>b.t<0.35);
+ // マット外 = リングアウト
+ for(const q of M)q.offT=(!q.onMat)?(q.offT||0)+dt:0;   // マット外が 0.6秒 続いたらリングアウト(一瞬の読み落としは無視)
+ if(cube[0]&&m.offT>0.6&&m.alive&&tm>2){finish('lose','リングアウト')}
+ if(cube[1]&&M[1].offT>0.6&&M[1].alive&&tm>2){finish('win','リングアウト')}
+ enemyStep(dt);
+ // 席(コックピット): 加速で後ろへ、旋回で横振り+傾き、被弾で震え、体当たりでガクン、ビームの反動
+ const s=tm;const sp=Math.hypot(m.vx,m.vy)/200;
+ G_shake*=Math.pow(0.02,dt);G_jolt*=Math.pow(0.03,dt);
+ // 被弾: 後ろへ突き上げ → 横に振られながら 1秒ほどで収まる(2〜3回揺れる)
+ HIT.t+=dt;const env=HIT.amp*Math.exp(-HIT.t*3.2);
+ const hitP=-1.0*env*Math.cos(HIT.t*15),hitR=0.8*HIT.side*env*Math.sin(HIT.t*15),hitY=0.6*HIT.side*env*Math.cos(HIT.t*10);
+ t.pitch=Math.max(-1,Math.min(1,-m.speed/115*0.45-(m.boost>0.5?0.3:0)+(m.recoil||0)*0.5+G_jolt*0.9+hitP));
+ t.yaw=Math.max(-1,Math.min(1,m.turn/115*0.9+hitY));
+ t.roll=Math.max(-1,Math.min(1,-m.va/400*0.6+hitR+Math.sin(s*12)*0.08*sp));
+}
+// ================= 敵機 AI: Gemini が作戦、プログラムが手足 =================
+function enemyStep(dt){const e=M[1],p=M[0];if(!cube[1]||!e.alive)return;
+ ai.nextT-=dt;if(ai.nextT<=0){ai.nextT=2.5;askAI()}
+ ai.driveT=(ai.driveT||0)-dt;if(ai.driveT>0)return;ai.driveT=0.25;   // 4回/秒で指示
+ const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy);const ang=Math.atan2(dy,dx);
+ const cx=(MAT.x0+MAT.x1)/2,cy=(MAT.y0+MAT.y1)/2;
+ let tx=p.x,ty=p.y,sp=70;
+ if(ai.mode==='ram'){tx=p.x+dx/d*40;ty=p.y+dy/d*40;sp=115}
+ else if(ai.mode==='circle'){const side=ai.side||1;tx=p.x+Math.cos(ang+Math.PI+side*1.2)*130;ty=p.y+Math.sin(ang+Math.PI+side*1.2)*130;sp=80}
+ else if(ai.mode==='retreat'){tx=e.x-dx/d*120;ty=e.y-dy/d*120;sp=90}
+ else if(ai.mode==='push'){const ox=p.x-cx,oy=p.y-cy,od=Math.hypot(ox,oy)||1;tx=p.x-ox/od*40;ty=p.y-oy/od*40;sp=100}   // 端へ押す: 相手の中心側から当たる
+ // マットの外へ出ない
+ tx=Math.max(MAT.x0+25,Math.min(MAT.x1-25,tx));ty=Math.max(MAT.y0+25,Math.min(MAT.y1-25,ty));
+ // 正面に捉えたら撃つ
+ if(inCone(e,p)&&e.fireT<=0&&Math.random()<0.45){e.fireT=1.4;beams.push({t:0,enemy:true,hit:true});sndBeam(true);damage(0,ENEMY_DMG,'ビーム');cube[1].sound(6)}
+ e.fireT=Math.max(0,e.fireT-0.25);
+ // 動く: 目標へ(向きは相手を向く)
+ const faceA=Math.round(((ang*180/Math.PI)%360+360)%360);
+ const esp=Math.max(10,Math.round(sp*SPEED_SCALE));
+ if(ai.mode==='ram'||ai.mode==='push'||d<60)cube[1].goTo(Math.round(tx),Math.round(ty),faceA,esp);else cube[1].goTo(Math.round(tx),Math.round(ty),null,esp);}
+function askAI(){if(STANDALONE||ai.busy)return;ai.busy=true;const e=M[1],p=M[0];
+ const edge=(m)=>Math.min(m.x-MAT.x0,MAT.x1-m.x,m.y-MAT.y0,MAT.y1-m.y);
+ const prompt=`あなたは巨大ロボット戦のパイロット(敵側)。マット(戦場)の上で相手と1対1。作戦を1つ選び、一言叫べ。
+作戦: chase(追う) / ram(全速で体当たり) / circle(回り込んで側面を取る) / retreat(距離を取ってビーム) / push(相手を端へ押し出す。リングアウト狙い)
+状況: 自分HP ${e.hp} 相手HP ${p.hp} / 距離 ${Math.round(Math.hypot(p.x-e.x,p.y-e.y))} / 相手の端までの距離 ${Math.round(edge(p))} 自分の端まで ${Math.round(edge(e))} / 相手はこちらを${inCone(p,e)?'正面に捉えている':'捉えていない'} / 相手はシールド${p.shield>0.5?'中':'なし'} / 今の作戦 ${ai.mode}
+出力は JSON のみ: {"mode":"chase|ram|circle|retreat|push","say":"一言(12字以内)"}`;
+ fetch('/ai',{method:'POST',body:JSON.stringify({prompt,json:true})}).then(r=>r.json()).then(j=>{ai.busy=false;let o=null;try{o=JSON.parse(j.text)}catch(x){}
+  if(!o)return;if(['chase','ram','circle','retreat','push'].includes(o.mode)){if(o.mode!==ai.mode)ai.side=Math.random()<0.5?-1:1;ai.mode=o.mode}
+  if(o.say)say(String(o.say).slice(0,16))}).catch(()=>{ai.busy=false})}
+function say(s){const el=$('say');el.textContent=s?`敵パイロット「${s}」`:'';el.style.opacity=s?1:0}
+function msg(s){$('msg').textContent=s;$('msg').style.opacity=s?1:0}
+function big(s,ms){const b=$('big');b.textContent=s;b.style.opacity=s?1:0;if(ms)setTimeout(()=>{if(b.textContent===s)b.style.opacity=0},ms)}
+// ================= 音 =================
+let AC=null,master=null,SND={on:true};try{if(localStorage.getItem('h3_sound_mecha')==='off')SND.on=false}catch(e){}
+function ensureAudio(){if(!AC){const Ctor=window.AudioContext||window.webkitAudioContext;if(!Ctor)return false;try{AC=new Ctor()}catch(e){return false}const comp=AC.createDynamicsCompressor();comp.connect(AC.destination);master=AC.createGain();master.gain.value=SND.on?1:0;master.connect(comp)}if(AC.state!=='running')AC.resume();return AC.state==='running'}
+function toggleSound(){SND.on=!SND.on;try{localStorage.setItem('h3_sound_mecha',SND.on?'on':'off')}catch(e){}if(ensureAudio())master.gain.setTargetAtTime(SND.on?1:0,AC.currentTime,0.05)}
+function tone(f0,f1,dur,vol,type,when){if(!AC||!SND.on)return;const t0=AC.currentTime+(when||0);const o=AC.createOscillator();o.type=type||'sawtooth';o.frequency.setValueAtTime(f0,t0);o.frequency.exponentialRampToValueAtTime(f1,t0+dur);const g=AC.createGain();g.gain.setValueAtTime(vol,t0);g.gain.exponentialRampToValueAtTime(0.001,t0+dur);o.connect(g);g.connect(master);o.start(t0);o.stop(t0+dur)}
+function noise(dur,freq,vol){if(!AC||!SND.on)return;const sr=AC.sampleRate,n=Math.floor(sr*dur),b=AC.createBuffer(1,n,sr),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,1.5);const s=AC.createBufferSource();s.buffer=b;const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=freq;const g=AC.createGain();g.gain.value=vol;s.connect(f);f.connect(g);g.connect(master);s.start()}
+// ---- 戦闘中の音(鳴りっぱなし系) ----
+const ENG={osc:null,gain:null,filt:null,sh:null,shGain:null,lock:false,boost:false,alarmT:0};
+function engineSetup(){if(ENG.osc||!AC)return;
+ ENG.osc=AC.createOscillator();ENG.osc.type='sawtooth';ENG.osc.frequency.value=55;
+ ENG.filt=AC.createBiquadFilter();ENG.filt.type='lowpass';ENG.filt.frequency.value=300;
+ ENG.gain=AC.createGain();ENG.gain.gain.value=0;ENG.osc.connect(ENG.filt);ENG.filt.connect(ENG.gain);ENG.gain.connect(master);ENG.osc.start();
+ const sub=AC.createOscillator();sub.type='square';sub.frequency.value=27.5;const sg=AC.createGain();sg.gain.value=0.5;sub.connect(sg);sg.connect(ENG.filt);sub.start();ENG.sub=sub;
+ ENG.sh=AC.createOscillator();ENG.sh.type='sine';ENG.sh.frequency.value=196;const lfo=AC.createOscillator();lfo.frequency.value=6;const lg=AC.createGain();lg.gain.value=40;lfo.connect(lg);lg.connect(ENG.sh.frequency);lfo.start();
+ ENG.shGain=AC.createGain();ENG.shGain.gain.value=0;ENG.sh.connect(ENG.shGain);ENG.shGain.connect(master);ENG.sh.start()}
+function battleSound(dt,m,e){if(!AC||!SND.on)return;engineSetup();const now=AC.currentTime;
+ // エンジン: 動くほど高く大きく。ブーストでさらに
+ const drive=Math.min(1,Math.max(Math.abs(m.speed),Math.abs(m.turn))/115);
+ const f=55+drive*110+(m.boost>0.5?60:0);ENG.osc.frequency.setTargetAtTime(f,now,0.08);ENG.sub.frequency.setTargetAtTime(f/2,now,0.08);
+ ENG.filt.frequency.setTargetAtTime(250+drive*900,now,0.1);ENG.gain.gain.setTargetAtTime(mode==='battle'?0.05+drive*0.12:0,now,0.1);
+ // シールドのうなり
+ ENG.shGain.gain.setTargetAtTime(m.shield>0.5&&mode==='battle'?0.08:0,now,0.05);
+ // ブースト開始の「ゴォッ」
+ const b=m.boost>0.5;if(b&&!ENG.boost){noise(0.5,600,0.5);tone(80,240,0.5,0.3,'sawtooth')}ENG.boost=b;
+ // ロックオンの電子音
+ const lock=!!(cube[1]&&inCone(m,e));if(lock&&!ENG.lock){tone(1200,1200,0.06,0.25,'square');tone(1600,1600,0.06,0.25,'square',0.09)}ENG.lock=lock;
+ // HP が少ない時の警報
+ if(m.hp<=30&&m.alive){ENG.alarmT-=dt;if(ENG.alarmT<=0){ENG.alarmT=0.9;tone(700,500,0.18,0.2,'square');tone(700,500,0.18,0.2,'square',0.25)}}}
+function sndBeam(enemy){tone(enemy?600:1400,enemy?150:300,0.3,0.3);noise(0.15,3000,0.2)}
+function sndHit(){noise(0.35,700,0.7);tone(180,40,0.45,0.5,'square');tone(2400,300,0.12,0.15,'sawtooth')}
+function sndCrash(){noise(0.4,300,0.8);tone(120,40,0.4,0.5,'sine')}
+function sndWin(){[523,659,784,1046].forEach((f,i)=>tone(f,f,0.3,0.3,'square',i*0.15))}
+function sndLose(){[400,300,200,120].forEach((f,i)=>tone(f,f*0.8,0.4,0.3,'sawtooth',i*0.25))}
+// ================= 絵(コックピット一人称) =================
+function step(now){const dt=Math.min(0.05,(now-last)/1000);last=now;const I=readInput();
+ if(mode==='battle')battleStep(dt,I);else if(mode==='end'){endT+=dt;if(endT>3&&I.fireEdge)restart();t.pitch*=0.9;t.roll*=0.9;t.yaw*=0.9}else{t.pitch=0;t.roll=0;t.yaw=0}
+ battleSound(dt,M[0],M[1]);
+ const k=(HIT.t<1.2)?0.45:0.15;for(const q in cur)cur[q]+=(t[q]-cur[q])*k;   // 被弾直後は追従を速くして衝撃を席へ通す
+ draw(now);requestAnimationFrame(step)}
+function draw(now){const m=M[0],e=M[1];if(!aimY)aimY=Hh*0.45;
+ x.fillStyle='#04070c';x.fillRect(0,0,W,Hh);
+ const horizon=Hh*0.45+cur.pitch*Hh*0.06,focal=Hh*0.9,camH=26;   // カメラの高さ(mm)。toio のコックピットの目線
+ x.save();x.translate(W/2,horizon);x.rotate(cur.roll*0.15);x.translate(-W/2,-horizon);
+ // 空
+ const sky=x.createLinearGradient(0,0,0,horizon);sky.addColorStop(0,'#02050a');sky.addColorStop(1,'#0a2a3a');x.fillStyle=sky;x.fillRect(-W,-Hh,W*3,horizon+Hh);
+ // 地面(マットの格子)と 端の壁
+ const a=m.a*Math.PI/180,fx=Math.cos(a),fy=Math.sin(a),rx=-Math.sin(a),ry=Math.cos(a);
+ const proj=(wx,wy,h)=>{const dx=wx-m.x,dy=wy-m.y;const dep=dx*fx+dy*fy,lat=dx*rx+dy*ry;if(dep<8)return null;return {x:W/2+lat*focal/dep,y:horizon+(camH-(h||0))*focal/dep,dep}};
+ x.fillStyle='#08141c';x.fillRect(-W,horizon,W*3,Hh*2);
+ x.strokeStyle='rgba(80,220,255,0.35)';x.lineWidth=1.5;
+ for(let gx=MAT.x0;gx<=MAT.x1+1;gx+=41){for(let gy=MAT.y0;gy<MAT.y1;gy+=8){const p1=proj(gx,gy),p2=proj(gx,gy+8);if(p1&&p2){x.beginPath();x.moveTo(p1.x,p1.y);x.lineTo(p2.x,p2.y);x.stroke()}}}
+ for(let gy=MAT.y0;gy<=MAT.y1+1;gy+=41){for(let gx=MAT.x0;gx<MAT.x1;gx+=8){const p1=proj(gx,gy),p2=proj(gx+8,gy);if(p1&&p2){x.beginPath();x.moveTo(p1.x,p1.y);x.lineTo(p2.x,p2.y);x.stroke()}}}
+ // 端の壁(赤い光の柵)
+ x.strokeStyle='rgba(255,80,80,0.7)';x.lineWidth=3;const corners=[[MAT.x0,MAT.y0],[MAT.x1,MAT.y0],[MAT.x1,MAT.y1],[MAT.x0,MAT.y1]];
+ for(let i=0;i<4;i++){const [ax,ay]=corners[i],[bx,by]=corners[(i+1)%4];for(let s=0;s<1;s+=0.05){const p1=proj(ax+(bx-ax)*s,ay+(by-ay)*s,0),p2=proj(ax+(bx-ax)*(s+0.05),ay+(by-ay)*(s+0.05),0),p3=proj(ax+(bx-ax)*s,ay+(by-ay)*s,30);if(p1&&p2){x.beginPath();x.moveTo(p1.x,p1.y);x.lineTo(p2.x,p2.y);x.stroke()}if(p1&&p3){x.globalAlpha=0.35;x.beginPath();x.moveTo(p1.x,p1.y);x.lineTo(p3.x,p3.y);x.stroke();x.globalAlpha=1}}}
+ // 敵機
+ aimTarget=null;
+ if(cube[1]||mode!=='setup'){const p=proj(e.x,e.y,0);if(p){const s=focal/p.dep*40;mech(p.x,p.y,s,e,now);aimTarget=p.y-s*0.65}}   // 胴体の中心の高さ
+ // ビーム
+ for(const b of beams){const k=b.t/0.35;x.strokeStyle=b.enemy?`rgba(255,80,80,${1-k})`:`rgba(120,255,255,${1-k})`;x.lineWidth=Hh*0.02*(1-k)+2;
+  if(b.enemy){const p=proj(e.x,e.y,20);if(p){x.beginPath();x.moveTo(p.x,p.y);x.lineTo(W/2+(Math.random()-0.5)*W*0.1,Hh*0.9);x.stroke()}}
+  else{const p=proj(e.x,e.y,20);const tx=b.hit&&p?p.x:W/2,ty=b.hit&&p?p.y:horizon;x.beginPath();x.moveTo(W*0.3,Hh*0.95);x.lineTo(tx,ty);x.moveTo(W*0.7,Hh*0.95);x.lineTo(tx,ty);x.stroke()}}
+ x.restore();
+ // 被弾の赤フラッシュ
+ if(m.hitT>0){x.fillStyle=`rgba(255,0,0,${m.hitT*0.5})`;x.fillRect(0,0,W,Hh)}
+ // ---- コックピットの枠と HUD ----
+ x.fillStyle='#050a10';x.beginPath();x.moveTo(0,Hh);x.lineTo(0,Hh*0.72);x.lineTo(W*0.18,Hh*0.86);x.lineTo(W*0.82,Hh*0.86);x.lineTo(W,Hh*0.72);x.lineTo(W,Hh);x.closePath();x.fill();
+ x.strokeStyle='#2af';x.lineWidth=3;x.beginPath();x.moveTo(0,Hh*0.72);x.lineTo(W*0.18,Hh*0.86);x.lineTo(W*0.82,Hh*0.86);x.lineTo(W,Hh*0.72);x.stroke();
+ x.fillStyle='#050a10';x.fillRect(0,0,W,Hh*0.06);x.fillRect(0,0,W*0.05,Hh);x.fillRect(W*0.95,0,W*0.05,Hh);
+ // 照準
+ {const want=aimTarget==null?Hh*0.45:Math.max(Hh*0.2,Math.min(Hh*0.78,aimTarget));aimY+=(want-aimY)*0.2;const ay=aimY;
+  const lock=cube[1]&&inCone(m,e);x.strokeStyle=lock?'#f66':'#7ff';x.lineWidth=2;x.beginPath();x.arc(W/2,ay,Hh*0.09,0,7);x.stroke();
+  x.beginPath();x.moveTo(W/2-Hh*0.14,ay);x.lineTo(W/2-Hh*0.06,ay);x.moveTo(W/2+Hh*0.06,ay);x.lineTo(W/2+Hh*0.14,ay);x.moveTo(W/2,ay-Hh*0.14);x.lineTo(W/2,ay-Hh*0.06);x.moveTo(W/2,ay+Hh*0.06);x.lineTo(W/2,ay+Hh*0.14);x.stroke();
+  x.font=`${Hh*0.028}px Orbitron, sans-serif`;x.fillStyle=lock?'#f66':'#7ff';x.textAlign='center';if(lock)x.fillText('LOCK ON',W/2,ay-Hh*0.16);}
+ // HP
+ const bar=(px,py,w,h,v,col,label)=>{x.fillStyle='#123';x.fillRect(px,py,w,h);x.fillStyle=col;x.fillRect(px,py,w*Math.max(0,v)/100,h);x.strokeStyle=col;x.lineWidth=2;x.strokeRect(px,py,w,h);x.fillStyle=col;x.textAlign='left';x.font=`${h*0.9}px Orbitron, sans-serif`;x.fillText(label,px,py-h*0.3)};
+ bar(W*0.07,Hh*0.12,W*0.25,Hh*0.03,m.hp,'#7ff','自機  HP '+m.hp);
+ if(cube[1])bar(W*0.68,Hh*0.12,W*0.25,Hh*0.03,e.hp,'#f66','敵機  HP '+e.hp);
+ // レーダー(マット上の2機)
+ {const rx0=W*0.07,ry0=Hh*0.62,rw=W*0.12,rh=rw*(MAT.y1-MAT.y0)/(MAT.x1-MAT.x0||1);x.fillStyle='rgba(0,20,30,0.8)';x.fillRect(rx0,ry0,rw,rh);x.strokeStyle='#2af';x.lineWidth=2;x.strokeRect(rx0,ry0,rw,rh);
+  const dot=(q,col)=>{const px=rx0+(q.x-MAT.x0)/(MAT.x1-MAT.x0||1)*rw,py=ry0+(q.y-MAT.y0)/(MAT.y1-MAT.y0||1)*rh;const aa=q.a*Math.PI/180;x.fillStyle=col;x.beginPath();x.moveTo(px+Math.cos(aa)*9,py+Math.sin(aa)*9);x.lineTo(px+Math.cos(aa+2.5)*6,py+Math.sin(aa+2.5)*6);x.lineTo(px+Math.cos(aa-2.5)*6,py+Math.sin(aa-2.5)*6);x.closePath();x.fill()};
+  if(cube[0]||mode!=='setup')dot(m,m.onMat?'#7ff':'#357');if(cube[1])dot(e,e.onMat?'#f66':'#733');
+  x.fillStyle='#7ff';x.font=`${Hh*0.02}px Orbitron, sans-serif`;x.textAlign='left';x.fillText('RADAR',rx0,ry0-6)}
+ // 状態
+ x.fillStyle='#7ff';x.font=`${Hh*0.022}px "M PLUS 1p", sans-serif`;x.textAlign='right';
+ x.fillText(`${m.reverse?'後退 ':''}${m.boost>0.5?'BOOST ':''}${m.shield>0.5?'SHIELD ':''}${Math.round(Math.hypot(m.vx,m.vy))} mm/s`,W*0.93,Hh*0.62);
+ if(cube[1]){x.fillText(`敵 距離 ${Math.round(Math.hypot(e.x-m.x,e.y-m.y))}　作戦 ${ai.mode}`,W*0.93,Hh*0.66)}
+ $('st').innerHTML=(STANDALONE?'画面だけの版':st.connected?'<span class=ok>● H3</span>':'<span class=ng>● H3 未接続</span>')+`　スティック1 ${H3Input.devName('stick1')?'<span class=ok>○</span>':'<span class=ng>×</span>'} スティック2 ${H3Input.devName('stick2')?'<span class=ok>○</span>':'<span class=ng>×</span>'} ペダル ${H3Input.devName('pedals')?'<span class=ok>○</span>':'<span class=ng>×</span>'}　自機toio ${cube[0]?'<span class=ok>○</span>':'<span class=ng>×</span>'} 敵機toio ${cube[1]?'<span class=ok>○</span>':'<span class=ng>×</span>'}　振れ幅 ${gain.toFixed(2)}　音 ${SND.on?'<span class=ok>入</span>':'<span class=ng>切</span>'}(M)`;
+}
+function mech(px,py,s,e,now){ // 敵機: 四角いロボ(toio の形に手足)。被弾で白く
+ x.save();x.translate(px,py);const hit=e.hitT>0;const col=hit?'#fff':'#e33',dark=hit?'#ddd':'#822';
+ x.fillStyle=dark;x.fillRect(-s*0.55,-s*0.2,s*0.25,s*0.2);x.fillRect(s*0.3,-s*0.2,s*0.25,s*0.2);       // 足
+ x.fillStyle=col;x.fillRect(-s*0.5,-s*1.1,s,s*0.9);x.strokeStyle='#300';x.lineWidth=Math.max(1,s*0.04);x.strokeRect(-s*0.5,-s*1.1,s,s*0.9);   // 胴(キューブ)
+ x.fillStyle=dark;x.fillRect(-s*0.8,-s*1.0,s*0.28,s*0.55);x.fillRect(s*0.52,-s*1.0,s*0.28,s*0.55);   // 腕
+ x.fillStyle='#ff0';x.beginPath();x.arc(0,-s*0.8,s*0.13,0,7);x.fill();                                 // 目
+ x.fillStyle=col;x.fillRect(-s*0.2,-s*1.3,s*0.4,s*0.2);                                                 // 頭
+ if(!e.alive){x.fillStyle='rgba(255,120,0,0.6)';x.beginPath();x.arc(0,-s*0.6,s*0.9+Math.sin(now/80)*s*0.1,0,7);x.fill()}
+ x.restore()}
+requestAnimationFrame(step);
+if(!STANDALONE){setInterval(()=>fetch('/',{method:'POST',body:JSON.stringify({owner:OWNER,pitch:cur.pitch,roll:cur.roll,yaw:cur.yaw,gain})}).catch(()=>{}),1000/30);
+ setInterval(()=>fetch('/state').then(r=>r.json()).then(s=>st=s).catch(()=>{}),1000)}
+</script></body></html>
