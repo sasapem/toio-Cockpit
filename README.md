@@ -1,5 +1,7 @@
 # toio コックピット
 
+![toio コックピットの画面](docs/screenshot.png)
+
 マットの上で toio 2台が戦うゲーム。
 1台は自分、もう1台は AI が動かす敵。
 自分は toio の「中」に乗っている気分で、椅子(DOF Reality H3)が揺れる。
